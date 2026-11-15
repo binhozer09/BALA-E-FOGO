@@ -1,0 +1,59 @@
+workflows:
+  bala-e-fogo-android:
+    name: BALA E FOGO - APK Android
+    instance_type: mac_mini
+    max_build_duration: 120
+
+    environment:
+      groups:
+        - unity_credentials
+      vars:
+        UNITY_VERSION: "2019.2.6f1"
+        UNITY_VERSION_CHANGESET: "fe82a0e88406"
+        UNITY_PROJECT_PATH: "UnityPUBG"
+        APK_PATH: "UnityPUBG/android/BALA-E-FOGO.apk"
+
+    scripts:
+      - name: Ativar licença Unity no agente
+        script: |
+          "$UNITY_HOME/Contents/MacOS/Unity" -batchmode -quit -logFile - \
+            -serial "${UNITY_SERIAL}" \
+            -username "${UNITY_EMAIL}" \
+            -password "${UNITY_PASSWORD}"
+
+      - name: Instalar Unity 2019.2.6f1 e módulos Android
+        script: |
+          HUB="/Applications/Unity Hub.app/Contents/MacOS/Unity Hub"
+          yes Y | "$HUB" -- --headless install \
+            --version "$UNITY_VERSION" \
+            --changeset "$UNITY_VERSION_CHANGESET" \
+            -a x86_64
+          yes Y | "$HUB" -- --headless install-modules \
+            --version "$UNITY_VERSION" \
+            -m android \
+            -a x86_64
+
+      - name: Compilar APK do BALA E FOGO
+        script: |
+          UNITY_BIN="/Applications/Unity/Hub/Editor/$UNITY_VERSION/Unity.app/Contents/MacOS/Unity"
+          "$UNITY_BIN" -batchmode -quit -nographics -logFile - \
+            -projectPath "$UNITY_PROJECT_PATH" \
+            -executeMethod BuildScript.BuildAndroid
+
+      - name: Verificar APK gerado
+        script: |
+          test -s "$APK_PATH"
+          ls -lh "$APK_PATH"
+
+    artifacts:
+      - UnityPUBG/android/*.apk
+      - UnityPUBG/Editor.log
+
+    publishing:
+      scripts:
+        - name: Devolver licença Unity
+          script: |
+            UNITY_BIN="/Applications/Unity/Hub/Editor/$UNITY_VERSION/Unity.app/Contents/MacOS/Unity"
+            "$UNITY_BIN" -batchmode -quit -logFile - -returnlicense \
+              -username "${UNITY_EMAIL}" \
+              -password "${UNITY_PASSWORD}"
