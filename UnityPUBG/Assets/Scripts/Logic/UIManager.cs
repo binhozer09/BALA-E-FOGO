@@ -327,19 +327,37 @@ namespace UnityPUBG.Scripts.Logic
 
         private void MyPlayer_OnDie(object sender, EventArgs e)
         {
-            playerMovementJoystick.OnJoystickDrag -= PlayerMovementJoystick_OnJoystickDrag;
-            playerMovementJoystick.OnJoystickRelease -= PlayerMovementJoystick_OnJoystickRelease;
-            playerAttackJoystick.OnJoystickRelease -= PlayerAttackJoystick_OnJoystickDrag;
-            playerAttackJoystick.OnJoystickRelease -= PlayerAttackJoystick_OnJoystickRelease;
-            playerWeaponSwapButton.onClick.RemoveAllListeners();
-            playerQuickLootButton.onClick.RemoveAllListeners();
+            if (playerMovementJoystick != null)
+            {
+                playerMovementJoystick.OnJoystickDrag -= PlayerMovementJoystick_OnJoystickDrag;
+                playerMovementJoystick.OnJoystickRelease -= PlayerMovementJoystick_OnJoystickRelease;
+            }
+            if (playerAttackJoystick != null)
+            {
+                playerAttackJoystick.OnJoystickDrag -= PlayerAttackJoystick_OnJoystickDrag;
+                playerAttackJoystick.OnJoystickRelease -= PlayerAttackJoystick_OnJoystickRelease;
+            }
+            if (playerWeaponSwapButton != null)
+            {
+                playerWeaponSwapButton.onClick.RemoveAllListeners();
+            }
+            if (playerQuickLootButton != null)
+            {
+                playerQuickLootButton.onClick.RemoveAllListeners();
+            }
 
             var myPlayer = sender as Player;
-            myPlayer.OnCurrentHealthUpdate -= MyPlayer_OnHealthUpdate;
-            myPlayer.OnCurrentShieldUpdate -= MyPlayer_OnShieldUpdate;
-            myPlayer.ItemContainer.OnContainerUpdate -= MyPlayer_OnContainerUpdate;
-            myPlayer.ItemContainer.OnContainerUpdate -= MyPlayer_OnContainerUpdate;
-            myPlayer.ItemContainer.OnContainerResize -= MyPlayer_OnContainerResize;
+            if (myPlayer != null)
+            {
+                myPlayer.OnCurrentHealthUpdate -= MyPlayer_OnHealthUpdate;
+                myPlayer.OnCurrentShieldUpdate -= MyPlayer_OnShieldUpdate;
+                myPlayer.OnPrimaryWeaponChange -= MyPlayer_OnPrimaryWeaponChange;
+                if (myPlayer.ItemContainer != null)
+                {
+                    myPlayer.ItemContainer.OnContainerUpdate -= MyPlayer_OnContainerUpdate;
+                    myPlayer.ItemContainer.OnContainerResize -= MyPlayer_OnContainerResize;
+                }
+            }
 
             StartCoroutine(FadeInResultPanel(false));
         }

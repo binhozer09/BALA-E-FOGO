@@ -1,0 +1,14 @@
+name: LEGADO - Unity Android 2019 (manual only)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  legacy-build:
+    name: Aviso de workflow legado
+    runs-on: ubuntu-latest
+    steps:
+      - name: Informar workflow atual
+        run: |
+          echo "Este workflow antigo usa Unity 2019.2.6 e não compila mais o projeto."
+          echo "A compilação oficial está em 'BALA E FOGO - Ativar Unity Personal e gerar APK na nuvem'."

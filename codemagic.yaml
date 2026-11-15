@@ -1,0 +1,73 @@
+workflows:
+  bala-e-fogo-android:
+    name: BALA E FOGO - APK Android
+    instance_type: mac_mini_m2
+    max_build_duration: 120
+
+    environment:
+      groups:
+        - unity_credentials
+      vars:
+        UNITY_VERSION: "2019.2.6f1"
+        UNITY_VERSION_CHANGESET: "fe82a0e88406"
+        UNITY_PROJECT_PATH: "UnityPUBG"
+        APK_PATH: "UnityPUBG/android/BALA-E-FOGO.apk"
+
+    scripts:
+      - name: Instalar Unity 2019.2.6f1 e módulos Android
+        script: |
+          set -e
+          HUB="/Applications/Unity Hub.app/Contents/MacOS/Unity Hub"
+          yes Y | "$HUB" -- --headless install \
+            --version "$UNITY_VERSION" \
+            --changeset "$UNITY_VERSION_CHANGESET" \
+            -a x86_64
+          yes Y | "$HUB" -- --headless install-modules \
+            --version "$UNITY_VERSION" \
+            -m android android-sdk-ndk-tools android-open-jdk \
+            -a x86_64
+
+          UNITY_HOME="/Applications/Unity/Hub/Editor/$UNITY_VERSION/Unity.app"
+          if [ ! -x "$UNITY_HOME/Contents/MacOS/Unity" ]; then
+            echo "Unity não foi encontrado em $UNITY_HOME"
+            find "/Applications/Unity/Hub/Editor" -maxdepth 4 -name Unity -type f 2>/dev/null || true
+            exit 1
+          fi
+          echo "UNITY_HOME=$UNITY_HOME" >> "$CM_ENV"
+
+      - name: Ativar licença Unity no agente
+        script: |
+          set -e
+          "$UNITY_HOME/Contents/MacOS/Unity" -batchmode -quit -logFile - \
+            -serial "${UNITY_SERIAL}" \
+            -username "${UNITY_EMAIL}" \
+            -password "${UNITY_PASSWORD}"
+
+      - name: Compilar APK do BALA E FOGO
+        script: |
+          set -e
+          "$UNITY_HOME/Contents/MacOS/Unity" -batchmode -quit -nographics -logFile - \
+            -projectPath "$UNITY_PROJECT_PATH" \
+            -executeMethod BuildScript.BuildAndroid
+
+      - name: Verificar APK gerado
+        script: |
+          set -e
+          test -s "$APK_PATH"
+          ls -lh "$APK_PATH"
+
+    artifacts:
+      - UnityPUBG/android/*.apk
+      - UnityPUBG/Editor.log
+
+    publishing:
+      scripts:
+        - name: Devolver licença Unity
+          script: |
+            if [ -x "$UNITY_HOME/Contents/MacOS/Unity" ]; then
+              "$UNITY_HOME/Contents/MacOS/Unity" -batchmode -quit -logFile - -returnlicense \
+                -username "${UNITY_EMAIL}" \
+                -password "${UNITY_PASSWORD}"
+            else
+              echo "Unity não foi instalado; não há licença para devolver."
+            fi

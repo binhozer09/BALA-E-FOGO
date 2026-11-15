@@ -26,22 +26,34 @@ namespace UnityPUBG.Scripts.MainMenu
         /// 게임이 시작 했는가?
         /// </summary>
         private bool isStarted = false;
+        private Coroutine flashTextRoutine;
 
         #region 유니티 메시지
         private void Start()
         {
+            if (text == null || LoginObjects == null)
+            {
+                Debug.LogError("MenuManager is missing its Text or LoginObjects reference.");
+                enabled = false;
+                return;
+            }
+
             text.gameObject.SetActive(true);
             LoginObjects.SetActive(false);
             isStarted = false;
 
-            StartCoroutine(FlashText());
+            flashTextRoutine = StartCoroutine(FlashText());
         }
 
         private void Update()
         {
-            if (Input.anyKey && !isStarted)
+            if ((Input.anyKey || Input.touchCount > 0) && !isStarted)
             {
-                StopCoroutine(FlashText());
+                if (flashTextRoutine != null)
+                {
+                    StopCoroutine(flashTextRoutine);
+                    flashTextRoutine = null;
+                }
                 text.gameObject.SetActive(false);
                 LoginObjects.SetActive(true);
                 //GameObject.Find("TitleImage").SetActive(false);

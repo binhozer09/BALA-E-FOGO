@@ -31,10 +31,23 @@ namespace UnityPUBG.Scripts.Logic
             {
                 currentCamera = value;
 
-                foreach (var virtualCamera in virtualCameras)
+                if (virtualCameras != null)
                 {
-                    virtualCamera.enabled = false;
+                    foreach (var virtualCamera in virtualCameras)
+                    {
+                        if (virtualCamera != null)
+                        {
+                            virtualCamera.enabled = false;
+                        }
+                    }
                 }
+
+                if (currentCamera == null)
+                {
+                    Debug.LogError("Cannot activate a camera because the requested Cinemachine camera is not assigned.");
+                    return;
+                }
+
                 currentCamera.enabled = true;
             }
         }
@@ -59,19 +72,44 @@ namespace UnityPUBG.Scripts.Logic
                 playerCamera, dropShipCamera
             });
 
-            CurrentCamera = PlayerCamera;
-            EntityManager.Instance.OnMyPlayerSpawn += SetupPlayerCameras;
+            if (PlayerCamera != null)
+            {
+                CurrentCamera = PlayerCamera;
+            }
+
+            if (EntityManager.Instance != null)
+            {
+                EntityManager.Instance.OnMyPlayerSpawn += SetupPlayerCameras;
+            }
         }
 
         private void SetupPlayerCameras(object sender, EventArgs e)
         {
-            var targetPlayer = EntityManager.Instance.MyPlayer;
-            PlayerCamera.Follow = targetPlayer.transform;
+            var targetPlayer = EntityManager.Instance != null ? EntityManager.Instance.MyPlayer : null;
+            if (targetPlayer == null)
+            {
+                Debug.LogWarning("Camera setup skipped because the local player has not spawned yet.");
+                return;
+            }
 
-            var followCamera = minimapCamera.GetComponent<FollowCamera>();
-            followCamera.follow = targetPlayer.transform;
+            if (PlayerCamera != null)
+            {
+                PlayerCamera.Follow = targetPlayer.transform;
+                CurrentCamera = PlayerCamera;
+            }
 
-            CurrentCamera = PlayerCamera;
+            if (minimapCamera != null)
+            {
+                var followCamera = minimapCamera.GetComponent<FollowCamera>();
+                if (followCamera != null)
+                {
+                    followCamera.follow = targetPlayer.transform;
+                }
+                else
+                {
+                    Debug.LogWarning("Minimap camera is missing its FollowCamera component.");
+                }
+            }
         }
     }
 }

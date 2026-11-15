@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using UnityEditor;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityPUBG.Scripts.Entities;
@@ -31,10 +30,11 @@ namespace UnityPUBG.Scripts.Logic
 
         private void Awake()
         {
-            if (offlineMode)
+            if (offlineMode && !PhotonNetwork.offlineMode)
             {
+                // PUN automatically creates its local offline room when offlineMode is enabled.
+                // Calling CreateRoom immediately afterwards attempts to create a second room.
                 PhotonNetwork.offlineMode = true;
-                PhotonNetwork.CreateRoom("Sandbox");
             }
 
             if (debugMode)

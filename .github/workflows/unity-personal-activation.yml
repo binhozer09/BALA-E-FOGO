@@ -1,0 +1,28 @@
+name: BALA E FOGO - Solicitar licença Unity Personal
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - fix/android-first-playable
+    paths:
+      - '.github/workflows/unity-personal-activation.yml'
+
+jobs:
+  request-activation:
+    name: Gerar arquivo .alf para licença Personal
+    runs-on: ubuntu-latest
+    steps:
+      - name: Solicitar arquivo de ativação Unity
+        id: activation
+        uses: webbertakken/unity-request-manual-activation-file@v1.1
+        with:
+          unityVersion: 2019.2.6f1
+
+      - name: Publicar arquivo .alf
+        uses: actions/upload-artifact@v4
+        with:
+          name: Unity-Personal-Activation
+          path: ${{ steps.activation.outputs.filePath }}
+          if-no-files-found: error
+          retention-days: 7

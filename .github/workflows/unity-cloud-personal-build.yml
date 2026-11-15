@@ -1,0 +1,203 @@
+name: BALA E FOGO - Ativar Unity Personal e gerar APK na nuvem
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - fix/android-first-playable
+    paths:
+      - '.github/workflows/unity-cloud-personal-build.yml'
+      - 'UnityPUBG/**'
+
+jobs:
+  build-android:
+    name: Ativar Personal e compilar APK
+    runs-on: ubuntu-22.04
+    timeout-minutes: 90
+    env:
+      UNITY_NO_CLI_INVOKED_TELEMETRY: '1'
+      UNITY_NO_CRASH_REPORT: '1'
+      UNITY_NO_UPDATE_CHECK: '1'
+      UNITY_NO_CONSENT_PROMPT: '1'
+    steps:
+      - name: Baixar projeto
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Instalar dependências gráficas e bibliotecas antigas do Unity
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libglu1-mesa libgl1 libgconf-2-4
+
+      - name: Instalar Unity CLI oficial
+        run: |
+          curl -fsSL https://unity.com/install.sh | bash
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Desativar análise de uso da Unity CLI
+        run: |
+          unity analytics opt-out
+          unity analytics status
+
+      - name: Entrar na conta Unity pelo link seguro
+        run: |
+          echo "Aguardando autorização da conta Unity pelo link temporário exibido abaixo."
+          timeout 10m unity auth login
+          unity auth status
+
+      - name: Ativar licença gratuita Unity Personal
+        run: |
+          unity license activate --personal --accept-eula --non-interactive
+          unity license status
+          test -s "$HOME/.config/unity3d/Unity/licenses/UnityEntitlementLicense.xml"
+
+      - name: Instalar Unity Editor 2021.3.45f1 com suporte Android
+        run: |
+          unity install 2021.3.45f1 -m android --cm --accept-eula
+          unity editors --installed
+          EDITOR_PATH="$(find "$HOME" -type f -path '*/2021.3.45f1/Editor/Unity' -print -quit 2>/dev/null)"
+          if [ -z "$EDITOR_PATH" ]; then
+            echo "Não encontrei o executável do Unity Editor 2021.3.45f1."
+            find "$HOME" -maxdepth 7 -type f -name Unity -print 2>/dev/null | head -50
+            exit 1
+          fi
+          echo "UNITY_EDITOR_PATH=$EDITOR_PATH" >> "$GITHUB_ENV"
+
+      - name: Preparar compilação Android
+        shell: bash
+        run: |
+          mkdir -p UnityPUBG/Assets/Editor
+          cat > UnityPUBG/Assets/Editor/CIAndroidBuild.cs <<'CS'
+          using System;
+          using System.Linq;
+          using UnityEditor;
+          using UnityEditor.Build.Reporting;
+          using UnityEngine;
+
+          public static class CIAndroidBuild
+          {
+              public static void PerformBuild()
+              {
+                  string projectRoot = System.IO.Path.GetFullPath(System.IO.Path.Combine(Application.dataPath, ".."));
+                  string[] scenes = EditorBuildSettings.scenes
+                      .Where(scene => scene.enabled)
+                      .Select(scene => scene.path)
+                      .ToArray();
+
+                  if (scenes.Length == 0)
+                      throw new Exception("Nenhuma cena está habilitada em Build Settings.");
+
+                  foreach (string scene in scenes)
+                  {
+                      string sceneFile = System.IO.Path.Combine(projectRoot, scene);
+                      if (!System.IO.File.Exists(sceneFile))
+                          throw new Exception("Cena habilitada não encontrada: " + scene);
+                  }
+
+                  if (!BuildPipeline.IsBuildTargetSupported(BuildTargetGroup.Android, BuildTarget.Android))
+                      throw new Exception("Módulo Android não está instalado neste Unity Editor.");
+
+                  EditorUserBuildSettings.SwitchActiveBuildTarget(BuildTargetGroup.Android, BuildTarget.Android);
+
+                  // Garantir backend e arquiteturas Android compatíveis com aparelhos atuais.
+                  PlayerSettings.SetScriptingBackend(BuildTargetGroup.Android, ScriptingImplementation.IL2CPP);
+                  PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARMv7 | AndroidArchitecture.ARM64;
+                  Debug.Log("CI_ANDROID_SCRIPTING_BACKEND=" + PlayerSettings.GetScriptingBackend(BuildTargetGroup.Android));
+                  Debug.Log("CI_ANDROID_ARCHITECTURES=" + PlayerSettings.Android.targetArchitectures);
+
+                  string outputPath = System.IO.Path.Combine(projectRoot, "build", "Android", "BALA-E-FOGO.apk");
+                  System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(outputPath));
+
+                  var options = new BuildPlayerOptions
+                  {
+                      scenes = scenes,
+                      locationPathName = outputPath,
+                      target = BuildTarget.Android,
+                      options = BuildOptions.None
+                  };
+
+                  BuildReport report = BuildPipeline.BuildPlayer(options);
+                  Debug.Log("CI_BUILD_RESULT=" + report.summary.result);
+                  Debug.Log("CI_BUILD_OUTPUT=" + outputPath);
+                  Debug.Log("CI_BUILD_ERRORS=" + report.summary.totalErrors);
+                  if (report.summary.result != BuildResult.Succeeded)
+                      throw new Exception("Build Android falhou: " + report.summary.result + " (" + report.summary.totalErrors + " erros).");
+                  if (!System.IO.File.Exists(outputPath) || new System.IO.FileInfo(outputPath).Length == 0)
+                      throw new Exception("Unity informou sucesso, mas o APK não existe ou está vazio.");
+              }
+          }
+          CS
+
+      - name: Confirmar licença Personal compatível com o Editor
+        shell: bash
+        run: |
+          LICENSE_FILE="$HOME/.config/unity3d/Unity/licenses/UnityEntitlementLicense.xml"
+          if [ ! -s "$LICENSE_FILE" ]; then
+            echo "::error::A licença Unity Personal não foi encontrada no perfil do runner."
+            exit 1
+          fi
+          echo "Licença Personal encontrada; Editor 2021.3.45f1 aceita licença de usuário nomeado."
+
+      - name: Compilar APK Android com identidade Unity Personal
+        shell: bash
+        run: |
+          # unity open inicia o auxiliar oficial de identidade e o mantém disponível
+          # para o Licensing Client do Editor em máquinas sem Unity Hub.
+          unity auth status
+          unity auth broker ensure
+          # Chama o executável do Editor diretamente: unity open é um launcher de projeto
+          # e nesta execução o Editor abriu, importou os assets e encerrou sem executar
+          # CIAndroidBuild.PerformBuild (não houve CI_BUILD_RESULT no log).
+          "$UNITY_EDITOR_PATH" \
+            -batchmode \
+            -nographics \
+            -accept-apiupdate \
+            -projectPath "$GITHUB_WORKSPACE/UnityPUBG" \
+            -executeMethod CIAndroidBuild.PerformBuild \
+            -logFile "$GITHUB_WORKSPACE/unity-build.log" \
+            -quit
+
+      - name: Mostrar resumo do Editor e do Licensing Client se a compilação falhar
+        if: failure()
+        shell: bash
+        run: |
+          if [ -f unity-build.log ]; then
+            echo "===== Unity Editor log: erros e avisos ====="
+            grep -n -E -i "error|exception|failed|failure|crash|fatal|CI_BUILD_|BuildPlayer" unity-build.log | tail -300 || true
+            echo "===== Final do Unity Editor log ====="
+            tail -250 unity-build.log
+          else
+            echo "::warning::unity-build.log não foi criado pelo Editor."
+          fi
+          echo "===== Outros logs do Editor ====="
+          find "$HOME/.config/unity3d" -maxdepth 3 -type f \( -name 'Editor.log' -o -name 'upm.log' \) -print 2>/dev/null || true
+          for LOG in "$HOME/.config/unity3d/Unity/Unity.Licensing.Client.log" "$HOME/.config/unity3d/Unity/Unity.Entitlements.Audit.log"; do
+            if [ -f "$LOG" ]; then
+              echo "===== $LOG ====="
+              tail -120 "$LOG"
+            fi
+          done
+
+      - name: Validar arquivo APK gerado
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="UnityPUBG/build/Android/BALA-E-FOGO.apk"
+          test -s "$APK"
+          file "$APK"
+          unzip -t "$APK" >/dev/null
+          echo "===== Bibliotecas nativas incluídas ====="
+          unzip -Z1 "$APK" | grep -E '^lib/(armeabi-v7a|arm64-v8a)/' | sort
+          unzip -Z1 "$APK" | grep -q '^lib/arm64-v8a/libunity.so' || { echo "::error::APK sem libunity ARM64"; exit 1; }
+          unzip -Z1 "$APK" | grep -q '^lib/arm64-v8a/libil2cpp.so' || { echo "::error::APK sem libil2cpp ARM64 (IL2CPP não foi aplicado)"; exit 1; }
+          unzip -Z1 "$APK" | grep -q '^lib/armeabi-v7a/libunity.so' || { echo "::error::APK sem libunity ARMv7"; exit 1; }
+          echo "APK válido com ARMv7 + ARM64/IL2CPP: $(du -h "$APK" | cut -f1)"
+
+      - name: Publicar APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: BALA-E-FOGO-APK
+          path: UnityPUBG/build/Android/BALA-E-FOGO.apk
+          if-no-files-found: error
+          retention-days: 14
