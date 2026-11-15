@@ -49,7 +49,7 @@ jobs:
 
       - name: Instalar Unity Editor 2019.2.6f1 com suporte Android
         run: |
-          unity install 2019.2.6f1 -m android --cm
+          unity install 2019.2.6f1 -m android --cm --accept-eula
           unity editors --installed
           EDITOR_PATH="$(find "$HOME" -type f -path '*/2019.2.6f1/Editor/Unity' -print -quit 2>/dev/null)"
           if [ -z "$EDITOR_PATH" ]; then
