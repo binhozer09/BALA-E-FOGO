@@ -1,0 +1,28 @@
+name: BALA E FOGO - Testar Unity CLI na nuvem
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - fix/android-first-playable
+    paths:
+      - '.github/workflows/unity-cli-license-test.yml'
+
+jobs:
+  inspect-unity-cli:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Instalar Unity CLI oficial
+        run: |
+          curl -fsSL https://unity.com/install.sh | bash
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Verificar comandos oficiais de login e licença
+        run: |
+          unity --version
+          echo "===== AUTH LOGIN HELP ====="
+          unity auth login --help
+          echo "===== LICENSE ACTIVATE HELP ====="
+          unity license activate --help
+          echo "===== LICENSE STATUS HELP ====="
+          unity license status --help
