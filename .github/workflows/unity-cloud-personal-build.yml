@@ -14,6 +14,11 @@ jobs:
     name: Ativar Personal e compilar APK
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    env:
+      UNITY_NO_CLI_INVOKED_TELEMETRY: '1'
+      UNITY_NO_CRASH_REPORT: '1'
+      UNITY_NO_UPDATE_CHECK: '1'
+      UNITY_NO_CONSENT_PROMPT: '1'
     steps:
       - name: Baixar projeto
         uses: actions/checkout@v4
@@ -24,6 +29,11 @@ jobs:
         run: |
           curl -fsSL https://unity.com/install.sh | bash
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Desativar análise de uso da Unity CLI
+        run: |
+          unity analytics opt-out
+          unity analytics status
 
       - name: Entrar na conta Unity pelo link seguro
         run: |
