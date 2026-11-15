@@ -12,7 +12,7 @@ on:
 jobs:
   build-android:
     name: Ativar Personal e compilar APK
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     timeout-minutes: 90
     env:
       UNITY_NO_CLI_INVOKED_TELEMETRY: '1'
@@ -25,10 +25,10 @@ jobs:
         with:
           lfs: true
 
-      - name: Instalar dependências gráficas do Unity Editor
+      - name: Instalar dependências gráficas e bibliotecas antigas do Unity
         run: |
           sudo apt-get update
-          sudo apt-get install -y libglu1-mesa libgl1
+          sudo apt-get install -y libglu1-mesa libgl1 libgconf-2-4
 
       - name: Instalar Unity CLI oficial
         run: |
