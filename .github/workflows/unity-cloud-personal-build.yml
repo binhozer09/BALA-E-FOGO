@@ -116,26 +116,14 @@ jobs:
           fi
           echo "Licença Personal encontrada; Editor 2021.3.45f1 aceita licença de usuário nomeado."
 
-      - name: Compilar APK Android com licença Personal
+      - name: Compilar APK Android com identidade Unity Personal
         shell: bash
         run: |
-          # O Editor 2021.3 LTS usa o fluxo de licença nomeada Personal.
-          # A autenticação é feita pelo Licensing Client no mesmo perfil do runner.
-          set +e
-          "$UNITY_EDITOR_PATH" -batchmode -nographics -projectPath "$GITHUB_WORKSPACE/UnityPUBG" -executeMethod CIAndroidBuild.PerformBuild -logFile "$GITHUB_WORKSPACE/unity-build.log" -quit
-          BUILD_EXIT=$?
-
-          # Uma única repetição cobre timeout transitório do Licensing Client.
-          if [ "$BUILD_EXIT" -ne 0 ] && grep -Eqi "Timeout occured while trying to update license|Failed to activate/update license" "$GITHUB_WORKSPACE/unity-build.log"; then
-            echo "Licensing Client expirou; aguardando e tentando novamente uma vez com o entitlement já autenticado."
-            sleep 15
-            "$UNITY_EDITOR_PATH" -batchmode -nographics -projectPath "$GITHUB_WORKSPACE/UnityPUBG" -executeMethod CIAndroidBuild.PerformBuild -logFile "$GITHUB_WORKSPACE/unity-build-retry.log" -quit
-            BUILD_EXIT=$?
-            if [ -f "$GITHUB_WORKSPACE/unity-build-retry.log" ]; then
-              cat "$GITHUB_WORKSPACE/unity-build-retry.log" >> "$GITHUB_WORKSPACE/unity-build.log"
-            fi
-          fi
-          exit "$BUILD_EXIT"
+          # unity open inicia o auxiliar oficial de identidade e o mantém disponível
+          # para o Licensing Client do Editor em máquinas sem Unity Hub.
+          unity auth status
+          unity auth broker ensure
+          unity open "$GITHUB_WORKSPACE/UnityPUBG" --batchmode --args "-executeMethod CIAndroidBuild.PerformBuild -logFile $GITHUB_WORKSPACE/unity-build.log -quit -nographics" --wait
 
       - name: Mostrar resumo do Editor e do Licensing Client se a compilação falhar
         if: failure()
