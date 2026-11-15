@@ -203,6 +203,12 @@ namespace UnityPUBG.Scripts.MainMenu
             RaycastHit hit;
             GameObject target = null;
 
+            if (Camera.main == null)
+            {
+                Debug.LogWarning("Cannot select a character because the MainCamera is missing.");
+                return null;
+            }
+
             //화면 가운데 좌표에 레이캐스트
             Ray ray = Camera.main.ScreenPointToRay(Camera.main.WorldToScreenPoint(Vector3.zero));
 
