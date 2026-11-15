@@ -27,6 +27,7 @@ jobs:
 
       - name: Entrar na conta Unity pelo link seguro
         run: |
+          echo "Aguardando autorização da conta Unity pelo link temporário exibido abaixo."
           timeout 10m unity auth login
           unity auth status
 
