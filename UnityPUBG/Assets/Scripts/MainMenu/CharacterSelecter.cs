@@ -135,6 +135,18 @@ namespace UnityPUBG.Scripts.MainMenu
         /// </summary>
         private void putCharacter()
         {
+            if (CharacterSpawnPosition == null)
+            {
+                Debug.LogError("CharacterSpawnPosition is not assigned.");
+                return;
+            }
+
+            if (CharacterPrefabList == null || CharacterPrefabList.Count == 0)
+            {
+                Debug.LogError("CharacterPrefabList is empty. Add at least one character preview prefab.");
+                return;
+            }
+
             float num = CharacterPrefabList.Count;
 
             //원주
@@ -172,7 +184,14 @@ namespace UnityPUBG.Scripts.MainMenu
                 tmp.transform.SetParent(CharacterSpawnPosition.transform);
             }
 
-            Camera.main.transform.position = centerpos + Vector3.forward * 7f + Vector3.up;
+            if (Camera.main != null)
+            {
+                Camera.main.transform.position = centerpos + Vector3.forward * 7f + Vector3.up;
+            }
+            else
+            {
+                Debug.LogWarning("Character preview camera was not found (tag MainCamera).");
+            }
         }
 
         /// <summary>
@@ -199,10 +218,22 @@ namespace UnityPUBG.Scripts.MainMenu
         /// </summary>
         private void setSelectedCharacter()
         {
-            GameObject selectedCharacter;
-            selectedCharacter = getFrontObject();
+            GameObject selectedCharacter = getFrontObject();
+
+            // Keep a safe default if the camera ray does not hit a character preview.
+            if (selectedCharacter == null)
+            {
+                selectedCharacterName = "Character_Random";
+                return;
+            }
 
             string[] splitedName = selectedCharacter.name.Split('_');
+            if (splitedName.Length < 2)
+            {
+                selectedCharacterName = "Character_Random";
+                Debug.LogWarning("Selected preview object does not follow the Character_Name naming convention.");
+                return;
+            }
 
             selectedCharacterName = splitedName[0] + "_" + splitedName[1];
         }
@@ -212,32 +243,60 @@ namespace UnityPUBG.Scripts.MainMenu
         /// </summary>
         private void spawnMyCharacter(Vector3 spawnPos)
         {
-            GameObject playerCharacter = PhotonNetwork.Instantiate(PlayerCharacter.name, spawnPos, Quaternion.identity, 0);
+            if (PlayerCharacter == null)
+            {
+                Debug.LogError("PlayerCharacter prefab is not assigned on CharacterSelecter.");
+                return;
+            }
 
+            GameObject playerCharacter = PhotonNetwork.Instantiate(PlayerCharacter.name, spawnPos, Quaternion.identity, 0);
+            if (playerCharacter == null)
+            {
+                Debug.LogError("Photon could not instantiate the player character. Check the room connection and prefab registration.");
+                return;
+            }
+
+            List<Transform> characterModels = new List<Transform>();
             foreach (Transform child in playerCharacter.transform)
             {
                 if (child.name.StartsWith("Character"))
                 {
                     child.gameObject.SetActive(false);
+                    characterModels.Add(child);
                 }
             }
 
-            if (selectedCharacterName != "Character_Random")
+            if (characterModels.Count == 0)
             {
-                playerCharacter.transform.Find(selectedCharacterName).gameObject.SetActive(true);
+                Debug.LogError("PlayerCharacter prefab has no child model whose name starts with 'Character'.");
+                PhotonNetwork.Destroy(playerCharacter);
+                return;
+            }
+
+            Transform selectedModel = null;
+            if (!string.IsNullOrEmpty(selectedCharacterName) && selectedCharacterName != "Character_Random")
+            {
+                selectedModel = playerCharacter.transform.Find(selectedCharacterName);
+            }
+
+            if (selectedModel == null)
+            {
+                selectedModel = characterModels[Random.Range(0, characterModels.Count)];
+            }
+
+            selectedModel.gameObject.SetActive(true);
+            selectedCharacterName = selectedModel.name;
+
+            // Notify the other players about the selected character model.
+            PhotonView playerPhotonView = playerCharacter.GetComponent<PhotonView>();
+            if (playerPhotonView != null && PhotonNetwork.player != null)
+            {
+                playerPhotonView.RPC("WhatModelChoose", PhotonTargets.Others, selectedCharacterName, PhotonNetwork.player.NickName);
             }
             else
             {
-                int randomNum = Random.Range(0, 100) % playerCharacter.transform.childCount;
-
-                GameObject selectedModel = playerCharacter.transform.GetChild(randomNum).gameObject;
-
-                selectedModel.SetActive(true);
-                selectedCharacterName = selectedModel.name;
+                Debug.LogWarning("Player character PhotonView or local Photon player is missing; model selection was not synchronized.");
             }
-
-            //다른 플레이어들에게 내가 고른 캐릭터 모델을 알려줌
-            playerCharacter.GetComponent<PhotonView>().RPC("WhatModelChoose", PhotonTargets.Others, selectedCharacterName, PhotonNetwork.player.NickName);
 
             Destroy(gameObject);
         }
