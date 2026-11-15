@@ -1,0 +1,43 @@
+name: BALA E FOGO - APK Android (gratuito)
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - fix/android-first-playable
+    paths:
+      - 'UnityPUBG/**'
+      - '.github/workflows/unity-android.yml'
+
+jobs:
+  build-android:
+    name: Gerar APK Android
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar projeto
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Compilar com Unity Personal via GameCI
+        uses: game-ci/unity-builder@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          projectPath: UnityPUBG
+          unityVersion: 2019.2.6f1
+          targetPlatform: Android
+          androidAppBundle: false
+          buildsPath: build
+          buildName: BALA-E-FOGO
+          allowDirtyBuild: true
+
+      - name: Publicar APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: BALA-E-FOGO-APK
+          path: build/Android/**/*.apk
+          if-no-files-found: error
+          retention-days: 14
