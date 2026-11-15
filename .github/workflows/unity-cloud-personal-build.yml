@@ -139,15 +139,32 @@ jobs:
           # para o Licensing Client do Editor em máquinas sem Unity Hub.
           unity auth status
           unity auth broker ensure
-          unity open "$GITHUB_WORKSPACE/UnityPUBG" --batchmode --args "-executeMethod CIAndroidBuild.PerformBuild -logFile $GITHUB_WORKSPACE/unity-build.log -quit -nographics" --wait
+          # Chama o executável do Editor diretamente: unity open é um launcher de projeto
+          # e nesta execução o Editor abriu, importou os assets e encerrou sem executar
+          # CIAndroidBuild.PerformBuild (não houve CI_BUILD_RESULT no log).
+          "$UNITY_EDITOR_PATH" \
+            -batchmode \
+            -nographics \
+            -accept-apiupdate \
+            -projectPath "$GITHUB_WORKSPACE/UnityPUBG" \
+            -executeMethod CIAndroidBuild.PerformBuild \
+            -logFile "$GITHUB_WORKSPACE/unity-build.log" \
+            -quit
 
       - name: Mostrar resumo do Editor e do Licensing Client se a compilação falhar
         if: failure()
         shell: bash
         run: |
           if [ -f unity-build.log ]; then
-            tail -200 unity-build.log
+            echo "===== Unity Editor log: erros e avisos ====="
+            grep -n -E -i "error|exception|failed|failure|crash|fatal|CI_BUILD_|BuildPlayer" unity-build.log | tail -300 || true
+            echo "===== Final do Unity Editor log ====="
+            tail -250 unity-build.log
+          else
+            echo "::warning::unity-build.log não foi criado pelo Editor."
           fi
+          echo "===== Outros logs do Editor ====="
+          find "$HOME/.config/unity3d" -maxdepth 3 -type f \( -name 'Editor.log' -o -name 'upm.log' \) -print 2>/dev/null || true
           for LOG in "$HOME/.config/unity3d/Unity/Unity.Licensing.Client.log" "$HOME/.config/unity3d/Unity/Unity.Entitlements.Audit.log"; do
             if [ -f "$LOG" ]; then
               echo "===== $LOG ====="
