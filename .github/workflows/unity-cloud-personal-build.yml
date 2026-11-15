@@ -52,13 +52,13 @@ jobs:
           unity license status
           test -s "$HOME/.config/unity3d/Unity/licenses/UnityEntitlementLicense.xml"
 
-      - name: Instalar Unity Editor 2019.4.40f1 com suporte Android
+      - name: Instalar Unity Editor 2021.3.45f1 com suporte Android
         run: |
-          unity install 2019.4.40f1 -m android --cm --accept-eula
+          unity install 2021.3.45f1 -m android --cm --accept-eula
           unity editors --installed
-          EDITOR_PATH="$(find "$HOME" -type f -path '*/2019.4.40f1/Editor/Unity' -print -quit 2>/dev/null)"
+          EDITOR_PATH="$(find "$HOME" -type f -path '*/2021.3.45f1/Editor/Unity' -print -quit 2>/dev/null)"
           if [ -z "$EDITOR_PATH" ]; then
-            echo "Não encontrei o executável do Unity Editor 2019.4.40f1."
+            echo "Não encontrei o executável do Unity Editor 2021.3.45f1."
             find "$HOME" -maxdepth 7 -type f -name Unity -print 2>/dev/null | head -50
             exit 1
           fi
@@ -114,14 +114,13 @@ jobs:
             echo "::error::A licença Unity Personal não foi encontrada no perfil do runner."
             exit 1
           fi
-          echo "Licença Personal encontrada; Editor 2019.4.40f1 aceita licença de usuário nomeado."
+          echo "Licença Personal encontrada; Editor 2021.3.45f1 aceita licença de usuário nomeado."
 
       - name: Compilar APK Android com licença Personal
         shell: bash
         run: |
-          # A licença Personal já foi autenticada pela Unity CLI e armazenada
-          # como entitlement nomeado. Não passar -username/-password ao Editor:
-          # isso força o fluxo legado de ativação e pode provocar timeout.
+          # O Editor 2021.3 LTS usa o fluxo de licença nomeada Personal.
+          # A autenticação é feita pelo Licensing Client no mesmo perfil do runner.
           set +e
           "$UNITY_EDITOR_PATH" -batchmode -nographics -projectPath "$GITHUB_WORKSPACE/UnityPUBG" -executeMethod CIAndroidBuild.PerformBuild -logFile "$GITHUB_WORKSPACE/unity-build.log" -quit
           BUILD_EXIT=$?
