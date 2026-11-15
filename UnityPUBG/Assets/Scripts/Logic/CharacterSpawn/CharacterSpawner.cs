@@ -16,12 +16,19 @@ namespace UnityPUBG.Scripts.CharacterSpawn
         #region 유니티 메시지
         private void Awake()
         {
-            characterSelecter = FindObjectOfType<CharacterSelecter>().
-                                GetComponent<CharacterSelecter>();
+            // FindObjectOfType already returns the requested component.
+            characterSelecter = FindObjectOfType<CharacterSelecter>();
         }
 
         private void Start()
         {
+            if (characterSelecter == null)
+            {
+                Debug.LogError("CharacterSelecter was not found. Make sure the MainMenu character selector survives the scene change.");
+                Destroy(gameObject);
+                return;
+            }
+
             characterSelecter.SpawnMyCharacter(transform.position);
             Destroy(gameObject);
         }
