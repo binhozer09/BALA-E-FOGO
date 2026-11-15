@@ -48,6 +48,12 @@ namespace UnityPUBG.Scripts.Logic
         public void DeployDropShip()
         {
             var dropShip = FindObjectOfType<DropShip>();
+            if (dropShip == null)
+            {
+                Debug.LogWarning("Cannot deploy: no DropShip instance exists in the active scene.");
+                return;
+            }
+
             dropShip.LaunchDropShip();
         }
 
@@ -61,10 +67,22 @@ namespace UnityPUBG.Scripts.Logic
         private IEnumerator LaunchDropShipWithDelay(float delay)
         {
             GameObject dropShip = PhotonNetwork.Instantiate("DropShip", Vector3.zero, Quaternion.identity, 0);
-            yield return new WaitForSeconds(delay);
+            if (dropShip == null)
+            {
+                Debug.LogError("Could not create the DropShip. Verify that the DropShip prefab is registered in the Photon prefab resources.");
+                yield break;
+            }
 
-            dropShip.GetComponent<DropShip>().LaunchDropShip();
-            yield break;
+            yield return new WaitForSeconds(Mathf.Max(0f, delay));
+
+            DropShip dropShipComponent = dropShip.GetComponent<DropShip>();
+            if (dropShipComponent == null)
+            {
+                Debug.LogError("The DropShip prefab is missing its DropShip component.");
+                yield break;
+            }
+
+            dropShipComponent.LaunchDropShip();
         }
 
         private IEnumerator StartRingSystem(float delay)
