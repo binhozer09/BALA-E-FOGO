@@ -15,7 +15,7 @@ jobs:
     steps:
       - name: Solicitar arquivo de ativação Unity
         id: activation
-        uses: game-ci/unity-request-activation-file@v2
+        uses: webbertakken/unity-request-manual-activation-file@v1.1
         with:
           unityVersion: 2019.2.6f1
 
