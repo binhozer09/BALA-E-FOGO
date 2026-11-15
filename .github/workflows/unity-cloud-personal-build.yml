@@ -118,22 +118,39 @@ jobs:
 
       - name: Compilar APK Android com licença Personal
         shell: bash
-        env:
-          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
-          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
         run: |
-          if [ -z "$UNITY_EMAIL" ] || [ -z "$UNITY_PASSWORD" ]; then
-            echo "::error::Os Secrets UNITY_EMAIL e UNITY_PASSWORD precisam estar cadastrados."
-            exit 1
-          fi
-          "$UNITY_EDITOR_PATH" -batchmode -nographics -username "$UNITY_EMAIL" -password "$UNITY_PASSWORD" -projectPath "$GITHUB_WORKSPACE/UnityPUBG" -executeMethod CIAndroidBuild.PerformBuild -logFile "$GITHUB_WORKSPACE/unity-build.log" -quit
+          # A licença Personal já foi autenticada pela Unity CLI e armazenada
+          # como entitlement nomeado. Não passar -username/-password ao Editor:
+          # isso força o fluxo legado de ativação e pode provocar timeout.
+          set +e
+          "$UNITY_EDITOR_PATH" -batchmode -nographics -projectPath "$GITHUB_WORKSPACE/UnityPUBG" -executeMethod CIAndroidBuild.PerformBuild -logFile "$GITHUB_WORKSPACE/unity-build.log" -quit
+          BUILD_EXIT=$?
 
-      - name: Mostrar resumo do Editor se a compilação falhar
+          # Uma única repetição cobre timeout transitório do Licensing Client.
+          if [ "$BUILD_EXIT" -ne 0 ] && grep -Eqi "Timeout occured while trying to update license|Failed to activate/update license" "$GITHUB_WORKSPACE/unity-build.log"; then
+            echo "Licensing Client expirou; aguardando e tentando novamente uma vez com o entitlement já autenticado."
+            sleep 15
+            "$UNITY_EDITOR_PATH" -batchmode -nographics -projectPath "$GITHUB_WORKSPACE/UnityPUBG" -executeMethod CIAndroidBuild.PerformBuild -logFile "$GITHUB_WORKSPACE/unity-build-retry.log" -quit
+            BUILD_EXIT=$?
+            if [ -f "$GITHUB_WORKSPACE/unity-build-retry.log" ]; then
+              cat "$GITHUB_WORKSPACE/unity-build-retry.log" >> "$GITHUB_WORKSPACE/unity-build.log"
+            fi
+          fi
+          exit "$BUILD_EXIT"
+
+      - name: Mostrar resumo do Editor e do Licensing Client se a compilação falhar
         if: failure()
+        shell: bash
         run: |
           if [ -f unity-build.log ]; then
             tail -200 unity-build.log
           fi
+          for LOG in "$HOME/.config/unity3d/Unity/Unity.Licensing.Client.log" "$HOME/.config/unity3d/Unity/Unity.Entitlements.Audit.log"; do
+            if [ -f "$LOG" ]; then
+              echo "===== $LOG ====="
+              tail -120 "$LOG"
+            fi
+          done
 
       - name: Publicar APK
         uses: actions/upload-artifact@v4
