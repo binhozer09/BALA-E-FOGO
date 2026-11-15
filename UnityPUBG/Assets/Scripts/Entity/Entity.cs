@@ -7,6 +7,7 @@ using UnityPUBG.Scripts.Logic;
 
 namespace UnityPUBG.Scripts.Entities
 {
+    [RequireComponent(typeof(Rigidbody))]
     public abstract class Entity : MonoBehaviour
     {
         [Header("Health")]
