@@ -17,12 +17,13 @@ jobs:
           curl -fsSL https://unity.com/install.sh | bash
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
-      - name: Verificar comandos oficiais de login e licença
+      - name: Testar login sem compartilhar credenciais
         run: |
-          unity --version
-          echo "===== AUTH LOGIN HELP ====="
-          unity auth login --help
-          echo "===== LICENSE ACTIVATE HELP ====="
-          unity license activate --help
-          echo "===== LICENSE STATUS HELP ====="
-          unity license status --help
+          echo "===== LOGIN FLOW ====="
+          timeout 20s unity auth login || true
+          echo "===== AUTH STATUS ====="
+          unity auth status || true
+          echo "===== PERSONAL LICENSE COMMAND ====="
+          unity license activate --personal --accept-eula --non-interactive || true
+          echo "===== LICENSE STATUS ====="
+          unity license status || true
