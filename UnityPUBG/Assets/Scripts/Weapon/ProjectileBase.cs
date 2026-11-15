@@ -41,11 +41,27 @@ namespace UnityPUBG.Scripts
 
         private void OnTriggerEnter(Collider other)
         {
+            // A projectile must never damage its own player, including child colliders.
+            if (other.transform.root.CompareTag(myPlayerTag))
+            {
+                return;
+            }
+
             var damageableEntity = other.gameObject.GetComponent<IDamageable>();
-            if (damageableEntity != null /* && other.tag != myPlayerTag*/)
+            if (damageableEntity == null)
+            {
+                damageableEntity = other.GetComponentInParent<IDamageable>();
+            }
+
+            if (damageableEntity != null)
             {
                 damageableEntity.OnTakeDamage(projectileInfo.damage, projectileInfo.damageType);
-                other.attachedRigidbody.AddForce(transform.forward * 500f);
+
+                if (other.attachedRigidbody != null)
+                {
+                    other.attachedRigidbody.AddForce(transform.forward * projectileInfo.knockbackPower);
+                }
+
                 SaveToPool();
             }
         }
@@ -54,12 +70,14 @@ namespace UnityPUBG.Scripts
         #region PoolObject
         public override void OnObjectReuse()
         {
+            CancelInvoke(nameof(SaveToPool));
             isFired = false;
         }
 
         public override void OnObjectSaveToPool()
         {
-
+            CancelInvoke(nameof(SaveToPool));
+            isFired = false;
         }
         #endregion
 
@@ -73,8 +91,9 @@ namespace UnityPUBG.Scripts
 
         public void Fire()
         {
+            CancelInvoke(nameof(SaveToPool));
             isFired = true;
-            Invoke(nameof(SaveToPool), projectileInfo.lifeTime);
+            Invoke(nameof(SaveToPool), Mathf.Max(0.01f, projectileInfo.lifeTime));
         }
 
         private void SaveToPool()
