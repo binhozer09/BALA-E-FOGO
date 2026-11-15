@@ -1,123 +1,196 @@
-﻿using System.Collections;
-using System.Collections.Generic;
+using System.Collections;
 using UnityEngine;
 using UnityEngine.SceneManagement;
-
+using ExitGames.Client.Photon;
 
 namespace UnityPUBG.Scripts.MainMenu
 {
     public class Launcher : Photon.PunBehaviour
     {
-        public static Launcher Instance
-        {
-            private set
-            {
-                _instance = value;
-            }
-            get
-            {
-                return _instance;
-            }
-        }
-        private static Launcher _instance;
+        public static Launcher Instance { get; private set; }
 
         public PhotonLogLevel Loglevel = PhotonLogLevel.Full;
-        [Tooltip("The maximum number of players per room, When a room is full, it can't be joined by new players, and so new room will be created")]
+        [Tooltip("Maximum players per room.")]
         public byte MaxPlayersPerRoom = 4;
-        [Tooltip("The UI Panel to let the user enter name, connect and play")]
+        [Tooltip("Panel containing the connect controls.")]
         public GameObject controlPanel;
-        [Tooltip("The UI Label to inform the user that the connection is in progress")]
+        [Tooltip("UI shown while connecting.")]
         public GameObject progressLabel;
-        [Tooltip("How Many Players In Room")]
+        [Tooltip("Displays the current room player count.")]
         public UnityEngine.UI.Text PlayerCount;
 
+        private const float ConnectionTimeoutSeconds = 25f;
         private string _gameVersion = "1";
         private bool isConnecting;
+        private Coroutine connectionTimeoutRoutine;
 
-        #region MonoBehaviour CallBacks
         private void Awake()
         {
-            //Screen.SetResolution(1980, 1080, true);
-
             PhotonNetwork.logLevel = Loglevel;
-
             PhotonNetwork.autoJoinLobby = false;
-
             PhotonNetwork.automaticallySyncScene = true;
-
             Instance = this;
         }
 
         private void Start()
         {
-            progressLabel.SetActive(false);
-            //controlPanel.SetActive(true);
+            SetProgressVisible(false);
         }
-        #endregion
 
-        /// <summary>
-        /// 서버와 연결.
-        /// 방에 들어간다.
-        /// </summary>
         public void Connect()
         {
+            if (isConnecting)
+                return;
+
             isConnecting = true;
-            progressLabel.SetActive(true);
-            GameObject.Find("TitleImage").SetActive(false);
-            controlPanel.SetActive(false);
+            SetProgressVisible(true);
+            SetStatus("Connecting to server...");
+
+            GameObject titleImage = GameObject.Find("TitleImage");
+            if (titleImage != null)
+                titleImage.SetActive(false);
+            if (controlPanel != null)
+                controlPanel.SetActive(false);
+
+            StartConnectionTimeout();
 
             if (PhotonNetwork.connected)
-            {
                 PhotonNetwork.JoinRandomRoom();
-            }
             else
-            {
                 PhotonNetwork.ConnectUsingSettings(_gameVersion);
+        }
+
+        public override void OnConnectedToMaster()
+        {
+            Debug.Log("Launcher: authenticated with Photon Master Server.");
+            if (isConnecting)
+            {
+                SetStatus("Searching for a room...");
+                PhotonNetwork.JoinRandomRoom();
             }
         }
 
-        #region Photon.PunBehaviour CallBacks
-        public override void OnConnectedToMaster()
+        public override void OnFailedToConnectToPhoton(DisconnectCause cause)
         {
-            //base.OnConnectedToMaster(); 
-            Debug.Log("Launcher : OnConnectedToMaster() was called by PUN");
-            if (isConnecting)
-                PhotonNetwork.JoinRandomRoom();
+            Debug.LogError("Photon initial connection failed: " + cause);
+            FinishConnectionWithError("Connection failed: " + cause);
+        }
+
+        public override void OnConnectionFail(DisconnectCause cause)
+        {
+            Debug.LogError("Photon connection lost: " + cause);
+            FinishConnectionWithError("Connection lost: " + cause);
         }
 
         public override void OnDisconnectedFromPhoton()
         {
-            progressLabel.SetActive(false);
-            controlPanel.SetActive(true);
-            //base.OnDisconnectedFromPhoton();
-            //PhotonNetwork.LeaveRoom();
-            Debug.LogWarning("Laucher : OnDisconnectedFromPhoton() was called by PUN");
+            if (isConnecting)
+                FinishConnectionWithError("Disconnected from Photon. Check the network and App ID.");
+            Debug.LogWarning("Launcher: OnDisconnectedFromPhoton() called by PUN.");
         }
 
         public override void OnPhotonRandomJoinFailed(object[] codeAndMsg)
         {
-            //base.OnPhotonRandomJoinFailed(codeAndMsg);
-
-            Debug.Log("Launcher : OnPhotonRandomJoinFailed() was called by PUN. No random room available, so we create one.\n Calling : PhotonNetwork.CreateRoom(null, new RoomOptions(){maxPlayers = MaxPlayerPerRoom}, null;");
-
+            Debug.Log("No available room. Creating a new room.");
+            SetStatus("Creating a room...");
             PhotonNetwork.CreateRoom(null, new RoomOptions() { MaxPlayers = MaxPlayersPerRoom }, null);
+        }
+
+        public override void OnPhotonCreateRoomFailed(object[] codeAndMsg)
+        {
+            string detail = codeAndMsg != null && codeAndMsg.Length > 1
+                ? codeAndMsg[1].ToString()
+                : "Unknown Photon room error";
+            Debug.LogError("Photon could not create a room: " + detail);
+            FinishConnectionWithError("Could not create room: " + detail);
         }
 
         public override void OnJoinedRoom()
         {
-            PlayerCount.text = "Players : " + PhotonNetwork.playerList.Length + "/" + MaxPlayersPerRoom;
-            PlayerCount.gameObject.SetActive(true);
-            progressLabel.transform.parent.gameObject.SetActive(false);
+            isConnecting = false;
+            StopConnectionTimeout();
 
-            Debug.Log("Launcher : OnJoinedRoom() called by PUN, Now this client is in a room");
+            if (PlayerCount != null)
+            {
+                PlayerCount.text = "Players : " + PhotonNetwork.playerList.Length + "/" + MaxPlayersPerRoom;
+                PlayerCount.gameObject.SetActive(true);
+            }
+
+            if (progressLabel != null && progressLabel.transform.parent != null)
+                progressLabel.transform.parent.gameObject.SetActive(false);
+            else
+                SetProgressVisible(false);
+
+            Debug.Log("Launcher: successfully joined room. Players: " + PhotonNetwork.playerList.Length);
 
 #if UNITY_EDITOR
             if (PhotonNetwork.playerList.Length == MaxPlayersPerRoom)
                 Lobby.PTManager.Instance.StartGame();
             else
-                Debug.Log("PlayerCount : " + PhotonNetwork.playerList.Length);
+                Debug.Log("PlayerCount: " + PhotonNetwork.playerList.Length);
 #endif
         }
-        #endregion
+
+        private void StartConnectionTimeout()
+        {
+            StopConnectionTimeout();
+            connectionTimeoutRoutine = StartCoroutine(ConnectionTimeout());
+        }
+
+        private IEnumerator ConnectionTimeout()
+        {
+            yield return new WaitForSeconds(ConnectionTimeoutSeconds);
+            if (isConnecting)
+            {
+                Debug.LogError("Photon connection timed out after " + ConnectionTimeoutSeconds + " seconds. State: " + PhotonNetwork.connectionStateDetailed);
+                FinishConnectionWithError("Connection timed out. Verify internet access and Photon App ID.");
+                if (PhotonNetwork.connected)
+                    PhotonNetwork.Disconnect();
+            }
+        }
+
+        private void StopConnectionTimeout()
+        {
+            if (connectionTimeoutRoutine != null)
+            {
+                StopCoroutine(connectionTimeoutRoutine);
+                connectionTimeoutRoutine = null;
+            }
+        }
+
+        private void FinishConnectionWithError(string message)
+        {
+            isConnecting = false;
+            StopConnectionTimeout();
+            SetStatus(message);
+            SetProgressVisible(false);
+            if (controlPanel != null)
+                controlPanel.SetActive(true);
+        }
+
+        private void SetProgressVisible(bool visible)
+        {
+            if (progressLabel != null)
+                progressLabel.SetActive(visible);
+        }
+
+        private void SetStatus(string message)
+        {
+            if (progressLabel == null)
+                return;
+
+            UnityEngine.UI.Text label = progressLabel.GetComponent<UnityEngine.UI.Text>();
+            if (label == null)
+                label = progressLabel.GetComponentInChildren<UnityEngine.UI.Text>();
+            if (label != null)
+                label.text = message;
+        }
+
+        private void OnDestroy()
+        {
+            StopConnectionTimeout();
+            if (Instance == this)
+                Instance = null;
+        }
     }
 }
