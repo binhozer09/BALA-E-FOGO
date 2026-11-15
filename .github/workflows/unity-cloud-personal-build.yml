@@ -1,0 +1,73 @@
+name: BALA E FOGO - Ativar Unity Personal e gerar APK na nuvem
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - fix/android-first-playable
+    paths:
+      - '.github/workflows/unity-cloud-personal-build.yml'
+      - 'UnityPUBG/**'
+
+jobs:
+  build-android:
+    name: Ativar Personal e compilar APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Baixar projeto
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Instalar Unity CLI oficial
+        run: |
+          curl -fsSL https://unity.com/install.sh | bash
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Entrar na conta Unity pelo link seguro
+        run: |
+          timeout 10m unity auth login
+          unity auth status
+
+      - name: Ativar licença gratuita Unity Personal
+        run: |
+          unity license activate --personal --accept-eula --non-interactive
+          unity license status
+
+      - name: Preparar licença para a compilação
+        shell: bash
+        run: |
+          LICENSE_FILE="$(find "$HOME/.local/share/unity3d/Unity" "$HOME/.config/unity3d/Unity" "$HOME/.local/share/unity3d" -type f -name '*.ulf' -print -quit 2>/dev/null || true)"
+          if [ -z "$LICENSE_FILE" ]; then
+            echo "Não encontrei o arquivo .ulf criado pela ativação Personal."
+            find "$HOME/.local/share/unity3d" "$HOME/.config/unity3d" -maxdepth 5 -type f 2>/dev/null | head -100
+            exit 1
+          fi
+          echo "Licença Personal criada. Transferindo-a apenas entre etapas desta execução."
+          {
+            echo 'UNITY_LICENSE<<UNITY_LICENSE_EOF'
+            cat "$LICENSE_FILE"
+            echo 'UNITY_LICENSE_EOF'
+          } >> "$GITHUB_ENV"
+
+      - name: Compilar APK Android com GameCI
+        uses: game-ci/unity-builder@v4
+        env:
+          UNITY_LICENSE: ${{ env.UNITY_LICENSE }}
+        with:
+          projectPath: UnityPUBG
+          unityVersion: 2019.2.6f1
+          targetPlatform: Android
+          androidExportType: androidPackage
+          buildsPath: build
+          buildName: BALA-E-FOGO
+          allowDirtyBuild: true
+
+      - name: Publicar APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: BALA-E-FOGO-APK
+          path: build/Android/**/*.apk
+          if-no-files-found: error
+          retention-days: 14
