@@ -118,8 +118,15 @@ jobs:
 
       - name: Compilar APK Android com licença Personal
         shell: bash
+        env:
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
         run: |
-          "$UNITY_EDITOR_PATH" -batchmode -nographics -projectPath "$GITHUB_WORKSPACE/UnityPUBG" -executeMethod CIAndroidBuild.PerformBuild -logFile "$GITHUB_WORKSPACE/unity-build.log" -quit
+          if [ -z "$UNITY_EMAIL" ] || [ -z "$UNITY_PASSWORD" ]; then
+            echo "::error::Os Secrets UNITY_EMAIL e UNITY_PASSWORD precisam estar cadastrados."
+            exit 1
+          fi
+          "$UNITY_EDITOR_PATH" -batchmode -nographics -username "$UNITY_EMAIL" -password "$UNITY_PASSWORD" -projectPath "$GITHUB_WORKSPACE/UnityPUBG" -executeMethod CIAndroidBuild.PerformBuild -logFile "$GITHUB_WORKSPACE/unity-build.log" -quit
 
       - name: Mostrar resumo do Editor se a compilação falhar
         if: failure()
