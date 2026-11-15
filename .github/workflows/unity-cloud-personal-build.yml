@@ -99,6 +99,13 @@ jobs:
                       throw new Exception("Módulo Android não está instalado neste Unity Editor.");
 
                   EditorUserBuildSettings.SwitchActiveBuildTarget(BuildTargetGroup.Android, BuildTarget.Android);
+
+                  // Garantir backend e arquiteturas Android compatíveis com aparelhos atuais.
+                  PlayerSettings.SetScriptingBackend(BuildTargetGroup.Android, ScriptingImplementation.IL2CPP);
+                  PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARMv7 | AndroidArchitecture.ARM64;
+                  Debug.Log("CI_ANDROID_SCRIPTING_BACKEND=" + PlayerSettings.GetScriptingBackend(BuildTargetGroup.Android));
+                  Debug.Log("CI_ANDROID_ARCHITECTURES=" + PlayerSettings.Android.targetArchitectures);
+
                   string outputPath = System.IO.Path.Combine(projectRoot, "build", "Android", "BALA-E-FOGO.apk");
                   System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(outputPath));
 
@@ -180,7 +187,12 @@ jobs:
           test -s "$APK"
           file "$APK"
           unzip -t "$APK" >/dev/null
-          echo "APK válido: $(du -h "$APK" | cut -f1)"
+          echo "===== Bibliotecas nativas incluídas ====="
+          unzip -Z1 "$APK" | grep -E '^lib/(armeabi-v7a|arm64-v8a)/' | sort
+          unzip -Z1 "$APK" | grep -q '^lib/arm64-v8a/libunity.so' || { echo "::error::APK sem libunity ARM64"; exit 1; }
+          unzip -Z1 "$APK" | grep -q '^lib/arm64-v8a/libil2cpp.so' || { echo "::error::APK sem libil2cpp ARM64 (IL2CPP não foi aplicado)"; exit 1; }
+          unzip -Z1 "$APK" | grep -q '^lib/armeabi-v7a/libunity.so' || { echo "::error::APK sem libunity ARMv7"; exit 1; }
+          echo "APK válido com ARMv7 + ARM64/IL2CPP: $(du -h "$APK" | cut -f1)"
 
       - name: Publicar APK
         uses: actions/upload-artifact@v4
