@@ -13,7 +13,7 @@ jobs:
   build-android:
     name: Ativar Personal e compilar APK
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 90
     env:
       UNITY_NO_CLI_INVOKED_TELEMETRY: '1'
       UNITY_NO_CRASH_REPORT: '1'
@@ -45,40 +45,77 @@ jobs:
         run: |
           unity license activate --personal --accept-eula --non-interactive
           unity license status
+          test -s "$HOME/.config/unity3d/Unity/licenses/UnityEntitlementLicense.xml"
 
-      - name: Preparar licença para a compilação
-        shell: bash
+      - name: Instalar Unity Editor 2019.2.6f1 com suporte Android
         run: |
-          LICENSE_FILE="$(find "$HOME/.local/share/unity3d/Unity" "$HOME/.config/unity3d/Unity" "$HOME/.local/share/unity3d" -type f -name '*.ulf' -print -quit 2>/dev/null || true)"
-          if [ -z "$LICENSE_FILE" ]; then
-            echo "Não encontrei o arquivo .ulf criado pela ativação Personal."
-            find "$HOME/.local/share/unity3d" "$HOME/.config/unity3d" -maxdepth 5 -type f 2>/dev/null | head -100
+          unity install 2019.2.6f1 -m android --cm
+          unity editors --installed
+          EDITOR_PATH="$(find "$HOME" -type f -path '*/2019.2.6f1/Editor/Unity' -print -quit 2>/dev/null)"
+          if [ -z "$EDITOR_PATH" ]; then
+            echo "Não encontrei o executável do Unity Editor 2019.2.6f1."
+            find "$HOME" -maxdepth 7 -type f -name Unity -print 2>/dev/null | head -50
             exit 1
           fi
-          echo "Licença Personal criada. Transferindo-a apenas entre etapas desta execução."
-          {
-            echo 'UNITY_LICENSE<<UNITY_LICENSE_EOF'
-            cat "$LICENSE_FILE"
-            echo 'UNITY_LICENSE_EOF'
-          } >> "$GITHUB_ENV"
+          echo "UNITY_EDITOR_PATH=$EDITOR_PATH" >> "$GITHUB_ENV"
 
-      - name: Compilar APK Android com GameCI
-        uses: game-ci/unity-builder@v4
-        env:
-          UNITY_LICENSE: ${{ env.UNITY_LICENSE }}
-        with:
-          projectPath: UnityPUBG
-          unityVersion: 2019.2.6f1
-          targetPlatform: Android
-          androidExportType: androidPackage
-          buildsPath: build
-          buildName: BALA-E-FOGO
-          allowDirtyBuild: true
+      - name: Preparar compilação Android
+        shell: bash
+        run: |
+          mkdir -p UnityPUBG/Assets/Editor
+          cat > UnityPUBG/Assets/Editor/CIAndroidBuild.cs <<'CS'
+          using System;
+          using System.Linq;
+          using UnityEditor;
+          using UnityEditor.Build.Reporting;
+          using UnityEngine;
+
+          public static class CIAndroidBuild
+          {
+              public static void PerformBuild()
+              {
+                  EditorUserBuildSettings.SwitchActiveBuildTarget(BuildTargetGroup.Android, BuildTarget.Android);
+                  string[] scenes = EditorBuildSettings.scenes
+                      .Where(scene => scene.enabled)
+                      .Select(scene => scene.path)
+                      .ToArray();
+
+                  if (scenes.Length == 0)
+                      throw new Exception("Nenhuma cena está habilitada em Build Settings.");
+
+                  var options = new BuildPlayerOptions
+                  {
+                      scenes = scenes,
+                      locationPathName = "build/Android/BALA-E-FOGO.apk",
+                      target = BuildTarget.Android,
+                      options = BuildOptions.None
+                  };
+
+                  System.IO.Directory.CreateDirectory("build/Android");
+                  BuildReport report = BuildPipeline.BuildPlayer(options);
+                  Debug.Log("CI_BUILD_RESULT=" + report.summary.result);
+                  Debug.Log("CI_BUILD_OUTPUT=" + options.locationPathName);
+                  if (report.summary.result != BuildResult.Succeeded)
+                      throw new Exception("Build Android falhou: " + report.summary.result);
+              }
+          }
+          CS
+
+      - name: Compilar APK Android usando a licença Personal ativa
+        run: |
+          "$UNITY_EDITOR_PATH"             -batchmode             -nographics             -quit             -projectPath "$GITHUB_WORKSPACE/UnityPUBG"             -executeMethod CIAndroidBuild.PerformBuild             -logFile "$GITHUB_WORKSPACE/unity-build.log"
+
+      - name: Mostrar resumo do Editor se a compilação falhar
+        if: failure()
+        run: |
+          if [ -f unity-build.log ]; then
+            tail -200 unity-build.log
+          fi
 
       - name: Publicar APK
         uses: actions/upload-artifact@v4
         with:
           name: BALA-E-FOGO-APK
-          path: build/Android/**/*.apk
+          path: build/Android/BALA-E-FOGO.apk
           if-no-files-found: error
           retention-days: 14
