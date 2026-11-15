@@ -10,6 +10,7 @@ using UnityPUBG.Scripts.Utilities;
 
 namespace UnityPUBG.Scripts.Logic
 {
+    [RequireComponent(typeof(PhotonView))]
     public class RingSystem : Singleton<RingSystem>
     {
         [Header("Settings")]
@@ -301,10 +302,25 @@ namespace UnityPUBG.Scripts.Logic
 
             public void Validate()
             {
+                roundNumber = Mathf.Clamp(roundNumber, 1, 6);
+
+                if (waitPeriods == null) waitPeriods = new float[0];
+                if (timeToCloses == null) timeToCloses = new float[0];
+                if (diametersAfterClosing == null) diametersAfterClosing = new float[0];
+                if (tickDamages == null) tickDamages = new float[0];
+
                 Array.Resize(ref waitPeriods, roundNumber);
                 Array.Resize(ref timeToCloses, roundNumber);
                 Array.Resize(ref diametersAfterClosing, roundNumber);
                 Array.Resize(ref tickDamages, roundNumber);
+
+                for (int i = 0; i < roundNumber; i++)
+                {
+                    waitPeriods[i] = Mathf.Max(0.1f, waitPeriods[i]);
+                    timeToCloses[i] = Mathf.Max(0.1f, timeToCloses[i]);
+                    diametersAfterClosing[i] = Mathf.Max(0f, diametersAfterClosing[i]);
+                    tickDamages[i] = Mathf.Max(0f, tickDamages[i]);
+                }
 
                 float previousWaitPeriod = waitPeriods[0];
                 float previousTimeToClose = timeToCloses[0];
