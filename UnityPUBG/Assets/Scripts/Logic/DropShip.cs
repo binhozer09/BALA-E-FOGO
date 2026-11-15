@@ -153,14 +153,14 @@ namespace UnityPUBG.Scripts.Logic
                 Debug.LogWarning($"{nameof(Player)}가 이미 탑승중입니다");
                 return;
             }
-            MyPlayerIsOnBoard = true;
-
-            var player = EntityManager.Instance.MyPlayer;
+            var player = EntityManager.Instance != null ? EntityManager.Instance.MyPlayer : null;
             if (player == null)
             {
-                Debug.LogError($"");
+                Debug.LogError("Cannot board the DropShip because the local player has not spawned.");
                 return;
             }
+
+            MyPlayerIsOnBoard = true;
 
             //player.transform.position = new Vector3(0, -10, 0);
             var playerRigidBody = player.GetComponent<Rigidbody>();
