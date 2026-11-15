@@ -79,7 +79,7 @@ jobs:
           {
               public static void PerformBuild()
               {
-                  EditorUserBuildSettings.SwitchActiveBuildTarget(BuildTargetGroup.Android, BuildTarget.Android);
+                  string projectRoot = System.IO.Path.GetFullPath(System.IO.Path.Combine(Application.dataPath, ".."));
                   string[] scenes = EditorBuildSettings.scenes
                       .Where(scene => scene.enabled)
                       .Select(scene => scene.path)
@@ -88,20 +88,36 @@ jobs:
                   if (scenes.Length == 0)
                       throw new Exception("Nenhuma cena está habilitada em Build Settings.");
 
+                  foreach (string scene in scenes)
+                  {
+                      string sceneFile = System.IO.Path.Combine(projectRoot, scene);
+                      if (!System.IO.File.Exists(sceneFile))
+                          throw new Exception("Cena habilitada não encontrada: " + scene);
+                  }
+
+                  if (!BuildPipeline.IsBuildTargetSupported(BuildTargetGroup.Android, BuildTarget.Android))
+                      throw new Exception("Módulo Android não está instalado neste Unity Editor.");
+
+                  EditorUserBuildSettings.SwitchActiveBuildTarget(BuildTargetGroup.Android, BuildTarget.Android);
+                  string outputPath = System.IO.Path.Combine(projectRoot, "build", "Android", "BALA-E-FOGO.apk");
+                  System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(outputPath));
+
                   var options = new BuildPlayerOptions
                   {
                       scenes = scenes,
-                      locationPathName = "build/Android/BALA-E-FOGO.apk",
+                      locationPathName = outputPath,
                       target = BuildTarget.Android,
                       options = BuildOptions.None
                   };
 
-                  System.IO.Directory.CreateDirectory("build/Android");
                   BuildReport report = BuildPipeline.BuildPlayer(options);
                   Debug.Log("CI_BUILD_RESULT=" + report.summary.result);
-                  Debug.Log("CI_BUILD_OUTPUT=" + options.locationPathName);
+                  Debug.Log("CI_BUILD_OUTPUT=" + outputPath);
+                  Debug.Log("CI_BUILD_ERRORS=" + report.summary.totalErrors);
                   if (report.summary.result != BuildResult.Succeeded)
-                      throw new Exception("Build Android falhou: " + report.summary.result);
+                      throw new Exception("Build Android falhou: " + report.summary.result + " (" + report.summary.totalErrors + " erros).");
+                  if (!System.IO.File.Exists(outputPath) || new System.IO.FileInfo(outputPath).Length == 0)
+                      throw new Exception("Unity informou sucesso, mas o APK não existe ou está vazio.");
               }
           }
           CS
@@ -138,6 +154,16 @@ jobs:
               tail -120 "$LOG"
             fi
           done
+
+      - name: Validar arquivo APK gerado
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="build/Android/BALA-E-FOGO.apk"
+          test -s "$APK"
+          file "$APK"
+          unzip -t "$APK" >/dev/null
+          echo "APK válido: $(du -h "$APK" | cut -f1)"
 
       - name: Publicar APK
         uses: actions/upload-artifact@v4
