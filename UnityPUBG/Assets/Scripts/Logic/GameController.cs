@@ -25,7 +25,7 @@ namespace UnityPUBG.Scripts.Logic
 
             if (photonView == null)
             {
-                photonView.GetComponent<PhotonView>();
+                photonView = GetComponent<PhotonView>();
             }
         }
 
