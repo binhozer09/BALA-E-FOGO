@@ -52,13 +52,13 @@ jobs:
           unity license status
           test -s "$HOME/.config/unity3d/Unity/licenses/UnityEntitlementLicense.xml"
 
-      - name: Instalar Unity Editor 2019.2.6f1 com suporte Android
+      - name: Instalar Unity Editor 2019.4.40f1 com suporte Android
         run: |
-          unity install 2019.2.6f1 -m android --cm --accept-eula
+          unity install 2019.4.40f1 -m android --cm --accept-eula
           unity editors --installed
-          EDITOR_PATH="$(find "$HOME" -type f -path '*/2019.2.6f1/Editor/Unity' -print -quit 2>/dev/null)"
+          EDITOR_PATH="$(find "$HOME" -type f -path '*/2019.4.40f1/Editor/Unity' -print -quit 2>/dev/null)"
           if [ -z "$EDITOR_PATH" ]; then
-            echo "Não encontrei o executável do Unity Editor 2019.2.6f1."
+            echo "Não encontrei o executável do Unity Editor 2019.4.40f1."
             find "$HOME" -maxdepth 7 -type f -name Unity -print 2>/dev/null | head -50
             exit 1
           fi
@@ -106,24 +106,20 @@ jobs:
           }
           CS
 
-      - name: Validar credenciais Unity para o Editor 2019
+      - name: Confirmar licença Personal compatível com o Editor
         shell: bash
-        env:
-          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
-          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
         run: |
-          if [ -z "$UNITY_EMAIL" ] || [ -z "$UNITY_PASSWORD" ]; then
-            echo "::error::Faltam os secrets UNITY_EMAIL e/ou UNITY_PASSWORD nas configurações do repositório."
+          LICENSE_FILE="$HOME/.config/unity3d/Unity/licenses/UnityEntitlementLicense.xml"
+          if [ ! -s "$LICENSE_FILE" ]; then
+            echo "::error::A licença Unity Personal não foi encontrada no perfil do runner."
             exit 1
           fi
+          echo "Licença Personal encontrada; Editor 2019.4.40f1 aceita licença de usuário nomeado."
 
-      - name: Compilar APK Android com autenticação do Editor legado
+      - name: Compilar APK Android com licença Personal
         shell: bash
-        env:
-          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
-          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
         run: |
-          "$UNITY_EDITOR_PATH" -batchmode -nographics -username "$UNITY_EMAIL" -password "$UNITY_PASSWORD" -projectPath "$GITHUB_WORKSPACE/UnityPUBG" -executeMethod CIAndroidBuild.PerformBuild -logFile "$GITHUB_WORKSPACE/unity-build.log" -quit
+          "$UNITY_EDITOR_PATH" -batchmode -nographics -projectPath "$GITHUB_WORKSPACE/UnityPUBG" -executeMethod CIAndroidBuild.PerformBuild -logFile "$GITHUB_WORKSPACE/unity-build.log" -quit
 
       - name: Mostrar resumo do Editor se a compilação falhar
         if: failure()
