@@ -25,6 +25,11 @@ jobs:
         with:
           lfs: true
 
+      - name: Instalar dependências gráficas do Unity Editor
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libglu1-mesa libgl1-mesa-glx
+
       - name: Instalar Unity CLI oficial
         run: |
           curl -fsSL https://unity.com/install.sh | bash
@@ -103,7 +108,7 @@ jobs:
 
       - name: Compilar APK Android usando a licença Personal ativa
         run: |
-          "$UNITY_EDITOR_PATH"             -batchmode             -nographics             -quit             -projectPath "$GITHUB_WORKSPACE/UnityPUBG"             -executeMethod CIAndroidBuild.PerformBuild             -logFile "$GITHUB_WORKSPACE/unity-build.log"
+          "$UNITY_EDITOR_PATH" -batchmode -nographics -quit -projectPath "$GITHUB_WORKSPACE/UnityPUBG" -executeMethod CIAndroidBuild.PerformBuild -logFile "$GITHUB_WORKSPACE/unity-build.log"
 
       - name: Mostrar resumo do Editor se a compilação falhar
         if: failure()
