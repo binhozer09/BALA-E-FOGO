@@ -5,11 +5,10 @@ on:
 
 jobs:
   legacy-build:
-    name: Build legado desativado
+    name: Aviso de workflow legado
     runs-on: ubuntu-latest
     steps:
-      - name: Aviso
+      - name: Informar workflow atual
         run: |
-          echo "Este workflow legado usa Unity 2019.2.6 e foi desativado para evitar builds duplicados."
-          echo "Use o workflow 'BALA E FOGO - Ativar Unity Personal e gerar APK na nuvem'."
-          exit 1
+          echo "Este workflow antigo usa Unity 2019.2.6 e não compila mais o projeto."
+          echo "A compilação oficial está em 'BALA E FOGO - Ativar Unity Personal e gerar APK na nuvem'."
