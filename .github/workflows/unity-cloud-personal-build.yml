@@ -176,7 +176,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          APK="build/Android/BALA-E-FOGO.apk"
+          APK="UnityPUBG/build/Android/BALA-E-FOGO.apk"
           test -s "$APK"
           file "$APK"
           unzip -t "$APK" >/dev/null
@@ -186,6 +186,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: BALA-E-FOGO-APK
-          path: build/Android/BALA-E-FOGO.apk
+          path: UnityPUBG/build/Android/BALA-E-FOGO.apk
           if-no-files-found: error
           retention-days: 14
